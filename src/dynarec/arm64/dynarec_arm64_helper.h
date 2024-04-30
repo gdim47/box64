@@ -84,7 +84,6 @@
 #define SMSTART()   SMEND()
 // End of sequence
 #define SMEND()     if(dyn->smwrite && box64_dynarec_strongmem && (box64_dynarec_strongmem!=SMREAD_VAL)) {DMB_ISH();} dyn->smwrite=0; dyn->smread=0
-// Force a Data memory barrier (for LOCK: prefix)
 #define SMDMB()                                                  \
     if (box64_dynarec_strongmem && !box64_dynarec_weakbarrier) { \
         DSB_ISH();                                               \
