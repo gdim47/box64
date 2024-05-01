@@ -83,6 +83,7 @@ int box64_dynarec_tbb = 1;
 int box64_dynarec_wait = 1;
 int box64_dynarec_missing = 0;
 int box64_dynarec_aligned_atomics = 0;
+int box64_dynarec_mov_sync_threshold = 0;
 uintptr_t box64_nodynarec_start = 0;
 uintptr_t box64_nodynarec_end = 0;
 #ifdef ARM64
@@ -655,6 +656,18 @@ void LoadLogEnv()
         }
         if(box64_dynarec_strongmem)
             printf_log(LOG_INFO, "Dynarec will try to emulate a strong memory model%s\n", (box64_dynarec_strongmem==1)?" with limited performance loss":((box64_dynarec_strongmem>1)?" with more performance loss":""));
+    }
+    p = getenv("BOX64_DYNAREC_MOV_SYNC_THRESHOLD");
+    if (p) {
+        int val = -1;
+        if(sscanf(p, "%d", &val) == 1) {
+            if(val >= 0) {
+                box64_dynarec_mov_sync_threshold = val;
+            }
+        }
+        if (box64_dynarec_mov_sync_threshold) {
+            printf_log(LOG_INFO, "Dynarec will insert barriers on every %d th 'mov' instructions", box64_dynarec_mov_sync_threshold);
+        }
     }
     p = getenv("BOX64_DYNAREC_X87DOUBLE");
     if(p) {
