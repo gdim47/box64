@@ -44,7 +44,6 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
     int unscaled;
     int lock;
     int cacheupd = 0;
-    uint16_t mov_counts = dyn->mov_counts;
 
     opcode = F8;
     MAYUSE(eb1);
@@ -3789,6 +3788,5 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
         default:
             DEFAULT;
     }
-    dyn->mov_counts = mov_counts;
     return addr;
 }
