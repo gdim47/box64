@@ -65,7 +65,7 @@
 // Read will contribute to trigger a DMB on "first" read if strongmem is >= SMREAD_MIN
 // Opcode will read
 #define SMREAD()    { \
-	if(dyn->insts[ninst].will_write) {WILLWRITE();} \
+	if(dyn->insts[ninst].will_write) {WILLREAD();} \
 	else if(box64_dynarec_strongmem==SMREAD_VAL && !dyn->smread) { \
 		DMB_ISHLD(); dyn->smread = 1; \
 	} \
@@ -102,6 +102,16 @@ if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {
 ++box64_mov_counts;
 // Opcode might have wrote (depend on nextop)
 #define SMMIGHTWRITE()   if(!MODREG) {SMWRITE();}
+
+#define WILLREAD() if((box64_dynarec_strongmem>=SMFIRST_MIN) && dyn->smwrite==0 && (box64_dynarec_strongmem!=SMREAD_VAL)) { \
+	if (box64_mov_counts >= box64_dynarec_mov_sync_threshold) { \
+		DMB_ISHLD(); box64_mov_counts = 0; \
+	}else {NOP;} \
+	dyn->smwrite=0; dyn->smread=0; \
+} else if(box64_dynarec_strongmem>=SMFIRST_MIN && dyn->insts[ninst].last_write && (box64_dynarec_strongmem!=SMREAD_VAL)) { \
+	if(box64_mov_counts >= box64_dynarec_mov_sync_threshold){SMDMB(); box64_mov_counts = 0;} else {NOP;} \
+} dyn->smwrite=1; ++box64_mov_counts;
+
 // Opcode will write (without reading)
 #define WILLWRITE() if((box64_dynarec_strongmem>=SMFIRST_MIN) && dyn->smwrite==0 && (box64_dynarec_strongmem!=SMREAD_VAL)) { \
 	if (box64_mov_counts >= box64_dynarec_mov_sync_threshold) { \
@@ -142,7 +152,7 @@ if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {
                     ed = xRAX+(nextop&7)+(rex.b<<3);    \
                     wback = 0;                          \
                 } else {                                \
-                    SMREAD();                           \
+                    if(0) {SMREAD();}                           \
                     addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, &unscaled, 0xfff<<(2+rex.w), (1<<(2+rex.w))-1, rex, NULL, 0, D); \
                     LDxw(x1, wback, fixedaddress);      \
                     ed = x1;                            \
@@ -151,7 +161,7 @@ if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {
                     ed = xRAX+(nextop&7)+(rex.b<<3);    \
                     wback = 0;                          \
                 } else {                                \
-                    SMREAD();                           \
+                    if(0){SMREAD();}                           \
                     addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, &unscaled, 0xfff<<3, 7, rex, NULL, 0, D); \
                     LDx(x1, wback, fixedaddress);       \
                     ed = x1;                            \
@@ -160,7 +170,7 @@ if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {
                     ed = xRAX+(nextop&7)+(rex.b<<3);    \
                     wback = 0;                          \
                 } else {                                \
-                    SMREAD();                           \
+                    if(0) {SMREAD();}                           \
                     addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, &unscaled, 0xfff<<(3-rex.is32bits), rex.is32bits?3:7, rex, NULL, 0, D); \
                     LDz(x1, wback, fixedaddress);       \
                     ed = x1;                            \
@@ -169,7 +179,7 @@ if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {
                     ed = xEAX+(nextop&7)+(rex.b<<3);    \
                     wback = 0;                          \
                 } else {                                \
-                    SMREAD();                           \
+                    if(0) {SMREAD();}                           \
                     addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, &unscaled, 0xfff<<2, 3, rex, NULL,0, D); \
                     LDW(x1, wback, fixedaddress);       \
                     ed = x1;                            \
@@ -180,7 +190,7 @@ if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {
                     wb = x1;                            \
                     wback = 0;                          \
                 } else {                                \
-                    SMREAD();                           \
+                    if(0) {SMREAD();}                           \
                     addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, &unscaled, 0xfff<<2, 3, rex, NULL, 0, D); \
                     LDSW(x1, wback, fixedaddress);      \
                     wb = ed = x1;                       \
@@ -189,7 +199,7 @@ if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {
                     ed = xRAX+(nextop&7)+(rex.b<<3);    \
                     wback = 0;                          \
                 } else {                                \
-                    SMREAD();                           \
+                    if(0) {SMREAD();}                           \
                     addr = geted32(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, &unscaled, 0xfff<<(2+rex.w), (1<<(2+rex.w))-1, rex, NULL, 0, D); \
                     LDxw(x1, wback, fixedaddress);      \
                     ed = x1;                            \
@@ -230,7 +240,7 @@ if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {
                     MOVxw_REG(ret, ed);                 \
                     wback = 0;                          \
                 } else {                                \
-                    SMREAD();                           \
+                    if(0) {SMREAD();}                           \
                     addr = geted(dyn, addr, ninst, nextop, &wback, hint, &fixedaddress, &unscaled, 0xfff<<(2+rex.w), (1<<(2+rex.w))-1, rex, NULL, 0, D); \
                     ed = ret;                           \
                     LDxw(ed, wback, fixedaddress);      \
@@ -256,7 +266,7 @@ if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {
                     ed = xRAX+(nextop&7)+(rex.b<<3);    \
                     wback = 0;                          \
                 } else {                                \
-                    SMREAD();                           \
+                    if(0) {SMREAD();}                          \
                     addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, NULL, 0, 0, rex, NULL, 0, D); \
                     if(rex.is32bits)                    \
                         LDRxw_REG_SXTW(x1, O, wback);   \
@@ -270,7 +280,7 @@ if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {
                     ed = xRAX+(nextop&7)+(rex.b<<3);    \
                     wback = 0;                          \
                 } else {                                \
-                    SMREAD();                           \
+                    if(0) {SMREAD();}                           \
                     addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, NULL, 0, 0, rex, NULL, 0, D); \
                     if(rex.is32bits)                    \
                         LDRx_REG_SXTW(x1, O, wback);    \
@@ -283,7 +293,7 @@ if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {
                     ed = xRAX+(nextop&7)+(rex.b<<3);    \
                     wback = 0;                          \
                 } else {                                \
-                    SMREAD();                           \
+                    if(0) {SMREAD();}                           \
                     addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, NULL, 0, 0, rex, NULL, 0, D); \
                     if(rex.is32bits)                    \
                         LDRz_REG_SXTW(x1, O, wback);    \
@@ -297,7 +307,7 @@ if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {
                     wb = x1;                            \
                     wback = 0;                          \
                 } else {                                \
-                    SMREAD();                           \
+                    if(0) {SMREAD();}                           \
                     addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, NULL, 0, 0, rex, NULL, 0, D); \
                     if(rex.is32bits)                    \
                         LDRSW_REG_SXTW(x1, O, wback);   \
