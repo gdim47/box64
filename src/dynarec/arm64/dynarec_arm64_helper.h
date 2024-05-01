@@ -4,8 +4,6 @@
 // undef to get Close to SSE Float->int conversions
 //#define PRECISE_CVT
 
-#define MOV_SYNC_THRESHOLD 400
-
 #if STEP == 0
 #include "dynarec_arm64_pass0.h"
 #elif STEP == 1
@@ -66,13 +64,13 @@
 // Block will trigget at 1st and last if strongmem is >= SMFIRST_MIN
 // Read will contribute to trigger a DMB on "first" read if strongmem is >= SMREAD_MIN
 // Opcode will read
-#define SMREAD()    if(dyn->mov_counts == MOV_SYNC_THRESHOLD) {if(dyn->insts[ninst].will_write) {WILLWRITE();} else if(box64_dynarec_strongmem==SMREAD_VAL && !dyn->smread) {DMB_ISHLD(); dyn->smread = 1;} dyn->mov_counts = 0; } ++dyn->mov_counts;
+#define SMREAD()    if(dyn->mov_counts >= box64_dynarec_mov_sync_threshold) {if(dyn->insts[ninst].will_write) {WILLWRITE();} else if(box64_dynarec_strongmem==SMREAD_VAL && !dyn->smread) {DMB_ISHLD(); dyn->smread = 1;} dyn->mov_counts = 0; } ++dyn->mov_counts;
 // Opcode will read with option forced lock
 #define SMREADLOCK(lock)    if((lock)) {SMWRITELOCK(lock);} else {SMREAD();}
 // Opcode might read (depend on nextop)
 #define SMMIGHTREAD()   if(!MODREG) {SMREAD();}
 // Opcode has wrote
-#define SMWRITE()   if((box64_dynarec_strongmem>=SMFIRST_MIN) && dyn->smwrite==0 && (box64_dynarec_strongmem!=SMREAD_VAL)) {if(dyn->mov_counts == MOV_SYNC_THRESHOLD) {DMB_ISHST(); dyn->mov_counts = 0; } dyn->smwrite=0; dyn->smread=0;} if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {if(++dyn->smwrite>=SMSEQ_MAX) {if (dyn->mov_counts == MOV_SYNC_THRESHOLD) {SMDMB(); dyn->mov_counts = 0; } dyn->smwrite=1;}} else dyn->smwrite=1; ++dyn->mov_counts;
+#define SMWRITE()   if((box64_dynarec_strongmem>=SMFIRST_MIN) && dyn->smwrite==0 && (box64_dynarec_strongmem!=SMREAD_VAL)) {if(dyn->mov_counts >= box64_dynarec_mov_sync_threshold) {DMB_ISHST(); dyn->mov_counts = 0; } dyn->smwrite=0; dyn->smread=0;} if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {if(++dyn->smwrite>=SMSEQ_MAX) {if (dyn->mov_counts >= box64_dynarec_mov_sync_threshold) {SMDMB(); dyn->mov_counts = 0; } dyn->smwrite=1;}} else dyn->smwrite=1; ++dyn->mov_counts;
 // Opcode has wrote (strongmem>1 only)
 #define WILLWRITE2()   if(box64_dynarec_strongmem>SMWRITE2_MIN) {WILLWRITE();}
 #define SMWRITE2()   if(box64_dynarec_strongmem>SMWRITE2_MIN) {SMWRITE();}
@@ -83,7 +81,7 @@
 // Opcode might have wrote (depend on nextop)
 #define SMMIGHTWRITE()   if(!MODREG) {SMWRITE();}
 // Opcode will write (without reading)
-#define WILLWRITE() if((box64_dynarec_strongmem>=SMFIRST_MIN) && dyn->smwrite==0 && (box64_dynarec_strongmem!=SMREAD_VAL)) {if (dyn->mov_counts == MOV_SYNC_THRESHOLD) {DMB_ISHST(); dyn->mov_counts = 0;} dyn->smwrite=0; dyn->smread=0; } else if(box64_dynarec_strongmem>=SMFIRST_MIN && dyn->insts[ninst].last_write && (box64_dynarec_strongmem!=SMREAD_VAL)) {if(dyn->mov_counts == MOV_SYNC_THRESHOLD){SMDMB(); dyn->mov_counts = 0;}} dyn->smwrite=1; ++dyn->mov_counts;
+#define WILLWRITE() if((box64_dynarec_strongmem>=SMFIRST_MIN) && dyn->smwrite==0 && (box64_dynarec_strongmem!=SMREAD_VAL)) {if (dyn->mov_counts >= box64_dynarec_mov_sync_threshold) {DMB_ISHST(); dyn->mov_counts = 0;} dyn->smwrite=0; dyn->smread=0; } else if(box64_dynarec_strongmem>=SMFIRST_MIN && dyn->insts[ninst].last_write && (box64_dynarec_strongmem!=SMREAD_VAL)) {if(dyn->mov_counts >= box64_dynarec_mov_sync_threshold){SMDMB(); dyn->mov_counts = 0;}} dyn->smwrite=1; ++dyn->mov_counts;
 // Start of sequence
 #define SMSTART()   SMEND()
 // End of sequence
