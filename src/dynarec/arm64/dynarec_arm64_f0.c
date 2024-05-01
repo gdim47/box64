@@ -87,7 +87,9 @@ uintptr_t dynarec64_F0(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                     STLXRB(x4, x1, wback);
                     CBNZx_MARKLOCK(x4);
                 }
-                SMDMB();
+                if(!arm64_atomics) {
+                    SMDMB();
+                }
             }
             break;
         case 0x01:
@@ -990,15 +992,14 @@ uintptr_t dynarec64_F0(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             } else {
                                 STADDB(x2, wback);
                             }
-
                         } else {
                             MARKLOCK;
                             LDAXRB(x1, wback);
                             emit_add8c(dyn, ninst, x1, u8, x2, x4);
                             STLXRB(x3, x1, wback);
                             CBNZx_MARKLOCK(x3);
+                            SMDMB();
                         }
-                        SMDMB();
                     }
                     break;
                 case 1: //OR
@@ -1028,8 +1029,8 @@ uintptr_t dynarec64_F0(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             emit_or8c(dyn, ninst, x1, u8, x2, x4);
                             STLXRB(x3, x1, wback);
                             CBNZx_MARKLOCK(x3);
+                            SMDMB();
                         }
-                        SMDMB();
                     }
                     break;
                 case 2: //ADC
@@ -1103,8 +1104,8 @@ uintptr_t dynarec64_F0(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             emit_and8c(dyn, ninst, x1, u8, x2, x4);
                             STLXRB(x3, x1, wback);
                             CBNZx_MARKLOCK(x3);
+                            SMDMB();
                         }
-                        SMDMB();
                     }
                     break;
                 case 5: //SUB
@@ -1134,8 +1135,8 @@ uintptr_t dynarec64_F0(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             emit_sub8c(dyn, ninst, x1, u8, x2, x4, x3);
                             STLXRB(x3, x1, wback);
                             CBNZx_MARKLOCK(x3);
+                            SMDMB();
                         }
-                        SMDMB();
                     }
                     break;
                 case 6: //XOR
@@ -1165,8 +1166,8 @@ uintptr_t dynarec64_F0(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             emit_xor8c(dyn, ninst, x1, u8, x2, x4);
                             STLXRB(x3, x1, wback);
                             CBNZx_MARKLOCK(x3);
+                            SMDMB();
                         }
-                        SMDMB();
                     }
                     break;
                 case 7: //CMP
@@ -1349,8 +1350,8 @@ uintptr_t dynarec64_F0(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             emit_and32(dyn, ninst, rex, x1, x5, x3, x4);
                             STLXRxw(x3, x1, wback);
                             CBNZx_MARKLOCK(x3);
+                            SMDMB();
                         }
-                        SMDMB();
                     }
                     break;
                 case 5: //SUB
@@ -1604,8 +1605,8 @@ uintptr_t dynarec64_F0(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             emit_inc8(dyn, ninst, x1, x3, x4);
                             STLXRB(x3, x1, wback);
                             CBNZx_MARKLOCK(x3);
+                            SMDMB();
                         }
-                        SMDMB();
                     }
                     break;
                 case 1: //DEC Eb
@@ -1631,8 +1632,8 @@ uintptr_t dynarec64_F0(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             emit_dec8(dyn, ninst, x1, x3, x4);
                             STLXRB(x3, x1, wback);
                             CBNZx_MARKLOCK(x3);
+                            SMDMB();
                         }
-                        SMDMB();
                     }
                     break;
                 default:
@@ -1676,7 +1677,6 @@ uintptr_t dynarec64_F0(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             STLXRxw(x3, x1, wback);
                             CBNZx_MARKLOCK(x3);
                         }
-                        SMDMB();
                         if(!ALIGNED_ATOMICxw) {
                             B_NEXT_nocond;
                             MARK;
@@ -1687,6 +1687,8 @@ uintptr_t dynarec64_F0(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             STLXRB(x3, x1, wback);
                             CBNZw_MARK(x3);
                             STRxw_U12(x1, wback, 0);
+                        }
+                        if(!arm64_atomics || !ALIGNED_ATOMICxw) {
                             SMDMB();
                         }
                     }
@@ -1724,7 +1726,6 @@ uintptr_t dynarec64_F0(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             STLXRxw(x3, x1, wback);
                             CBNZx_MARKLOCK(x3);
                         }
-                        SMDMB();
                         if(!ALIGNED_ATOMICxw) {
                             B_NEXT_nocond;
                             MARK;
@@ -1735,6 +1736,8 @@ uintptr_t dynarec64_F0(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             STLXRB(x3, x1, wback);
                             CBNZw_MARK(x3);
                             STRxw_U12(x1, wback, 0);
+                        }
+                        if(!arm64_atomics || !ALIGNED_ATOMICxw) {
                             SMDMB();
                         }
                     }
