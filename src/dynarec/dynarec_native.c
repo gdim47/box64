@@ -576,6 +576,7 @@ void* FillBlock64(dynablock_t* block, uintptr_t addr, int alternate, int is32bit
     helper.next_cap = MAX_INSTS;
     helper.table64 = static_table64;
     helper.table64cap = sizeof(static_table64)/sizeof(uint64_t);
+    helper.mov_counts = 0; 
     // pass 0, addresses, x64 jump addresses, overall size of the block
     uintptr_t end = native_pass0(&helper, addr, alternate, is32bits);
     if(helper.abort) {
