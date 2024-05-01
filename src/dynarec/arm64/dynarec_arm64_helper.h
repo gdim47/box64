@@ -4,7 +4,7 @@
 // undef to get Close to SSE Float->int conversions
 //#define PRECISE_CVT
 
-#define MOV_SYNC_THRESHOLD 20
+#define MOV_SYNC_THRESHOLD 400
 
 #if STEP == 0
 #include "dynarec_arm64_pass0.h"
