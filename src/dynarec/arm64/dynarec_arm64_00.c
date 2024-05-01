@@ -1207,8 +1207,8 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                     // do the swap 4 -> strb(ed), 1 -> gd
                     STLXRB(x3, x4, ed);
                     CBNZx_MARKLOCK(x3);
+                    SMDMB();
                 }
-                SMDMB();
             }
             BFIx(gb1, x1, gb2, 8);
             break;
@@ -1257,8 +1257,8 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                     STRxw_U12(gd, ed, 0);
                     MARK2;
                 }
-                SMDMB();
                 if(!ALIGNED_ATOMICxw || !arm64_atomics) {
+                    SMDMB();
                     MOVxw_REG(gd, x1);
                 }
             }
