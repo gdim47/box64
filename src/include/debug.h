@@ -24,7 +24,7 @@ extern int box64_dynarec_bigblock;
 extern int box64_dynarec_forward;
 extern int box64_dynarec_strongmem;
 extern int box64_dynarec_mov_sync_threshold;
-extern int box64_mov_counts;
+extern int box64_dynarec_jcond_disable_barriers; 
 extern int box64_dynarec_fastnan;
 extern int box64_dynarec_fastround;
 extern int box64_dynarec_x87double;
@@ -36,6 +36,8 @@ extern int box64_dynarec_tbb;
 extern int box64_dynarec_wait;
 extern int box64_dynarec_missing;
 extern int box64_dynarec_aligned_atomics;
+
+extern int box64_mov_counts;
 #ifdef ARM64
 extern int arm64_asimd;
 extern int arm64_aes;
