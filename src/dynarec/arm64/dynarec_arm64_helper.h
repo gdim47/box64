@@ -57,6 +57,8 @@
 #define SMSTART() dyn->smwrite = 0; dyn->smread = 0;
 #define SMEND() if(dyn->smwrite && (box64_dynarec_strongmem>SMFIRST_MIN)) {int i = ninst; while(i>=0 && !dyn->insts[i].will_write) --i; if(i>=0) {dyn->insts[i].last_write = 1;}} dyn->smwrite = 0
 #define SMDMB()
+#define SMDMB_LD()
+#define SMDMB_ST()  
 #else
 // Sequence of Write will trigger a DMB on "last" write if strongmem is >= 1
 // Block will trigget at 1st and last if strongmem is >= SMFIRST_MIN
