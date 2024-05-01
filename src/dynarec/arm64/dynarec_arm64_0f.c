@@ -1605,7 +1605,7 @@ uintptr_t dynarec64_0F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
             } else {                                    \
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, &fixedaddress, &unscaled, 0xfff, 0, rex, NULL, 0, 0); \
                 STB(x3, ed, fixedaddress);              \
-                if(0){SMWRITE();}                              \
+                if(!box64_dynarec_jcond_disable_barriers) {SMWRITE();}                              \
             }
 
         GOCOND(0x90, "SET", "Eb");

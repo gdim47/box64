@@ -93,6 +93,7 @@ int box64_dynarec_missing = 0;
 int box64_dynarec_aligned_atomics = 0;
 int box64_dynarec_nativeflags = 1;
 int box64_dynarec_mov_sync_threshold = 0;
+int box64_dynarec_jcond_disable_barriers = 0; 
 int box64_mov_counts = 0;
 uintptr_t box64_nodynarec_start = 0;
 uintptr_t box64_nodynarec_end = 0;
@@ -806,6 +807,17 @@ void LoadLogEnv()
         }
         if (box64_dynarec_mov_sync_threshold) {
             printf_log(LOG_INFO, "Dynarec will insert barriers on every %d 'mov' instructions\n", box64_dynarec_mov_sync_threshold);
+        }
+    }
+    p = getenv("BOX64_DYNAREC_JCOND_DISABLE_BARRIERS");
+    if(p) {
+        if(strlen(p) == 1) {
+            if(p[0] >= '0' && p[0] <= '1') {
+                box64_dynarec_jcond_disable_barriers = p[0] - '0';
+            }
+        }
+        if(box64_dynarec_jcond_disable_barriers) {
+            printf_log(LOG_INFO, "Dynarec will not set memory barriers on conditional jump instructions\n");
         }
     }
     p = getenv("BOX64_DYNAREC_X87DOUBLE");

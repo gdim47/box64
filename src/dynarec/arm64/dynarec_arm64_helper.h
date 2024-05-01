@@ -83,14 +83,14 @@
 	} else {NOP;} \
 	dyn->smwrite=0; dyn->smread=0; \
 }\
-if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {if(++dyn->smwrite>=SMSEQ_MAX) {if (box64_mov_counts >= box64_dynarec_mov_sync_threshold) {SMDMB(); box64_mov_counts = 0; } else {NOP;} dyn->smwrite=1;}} else dyn->smwrite=1; ++box64_mov_counts;
+if(box64_dynarec_strongmem>SMSEQ_MIN && (box64_dynarec_strongmem!=SMREAD_VAL)) {if(++dyn->smwrite>=SMSEQ_MAX) {if (box64_mov_counts >= box64_dynarec_mov_sync_threshold) {SMDMB_ST(); box64_mov_counts = 0; } else {NOP;} dyn->smwrite=1;}} else dyn->smwrite=1; ++box64_mov_counts;
 // Opcode has wrote (strongmem>1 only)
 #define WILLWRITE2()   if(box64_dynarec_strongmem>SMWRITE2_MIN) {WILLWRITE();}
 #define SMWRITE2()   if(box64_dynarec_strongmem>SMWRITE2_MIN) {SMWRITE();}
 // Opcode has wrote with option forced lock
 #define SMWRITELOCK(lock)   if(lock) { \
 	if(box64_mov_counts >= box64_dynarec_mov_sync_threshold) { \
-		SMDMB(); box64_mov_counts = 0; \
+		SMDMB_ST(); box64_mov_counts = 0; \
 	} else { NOP; } \
 	dyn->smwrite=1; \
 } else {SMWRITE();} \
