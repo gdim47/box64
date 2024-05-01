@@ -92,6 +92,10 @@
     }                                                            \
     dyn->smwrite = 0;                                            \
     dyn->smread = 0
+// Force a Load Data memory barrier
+#define SMDMB_LD()  DMB_ISHLD(); dyn->smwrite=0; dyn->smread=0
+// Force a Store Data memory barrier
+#define SMDMB_ST()  DMB_ISHST(); dyn->smwrite=0; dyn->smread=0
 
 #endif
 

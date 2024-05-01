@@ -1772,7 +1772,7 @@ uintptr_t dynarec64_0F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                 switch (nextop) {
                     case 0xE8:
                         INST_NAME("LFENCE");
-                        SMDMB();
+                        SMDMB_LD();
                         break;
                     case 0xF0:
                         INST_NAME("MFENCE");
@@ -1780,7 +1780,7 @@ uintptr_t dynarec64_0F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                         break;
                     case 0xF8:
                         INST_NAME("SFENCE");
-                        SMDMB();
+                        SMDMB_ST();
                         break;
                     default:
                         DEFAULT;
