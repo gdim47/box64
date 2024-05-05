@@ -83,8 +83,12 @@ int box64_dynarec_tbb = 1;
 int box64_dynarec_wait = 1;
 int box64_dynarec_missing = 0;
 int box64_dynarec_aligned_atomics = 0;
-int box64_dynarec_mov_sync_threshold = 0;
-int box64_dynarec_jcond_disable_barriers = 0; 
+//int box64_dynarec_mov_sync_threshold = 0;
+// set default value for mov_sync_threshold
+int box64_dynarec_mov_sync_threshold = 2000000000;
+//int box64_dynarec_jcond_disable_barriers = 0; 
+// set default value for jcond barriers
+int box64_dynarec_jcond_disable_barriers = 1; 
 int box64_mov_counts = 0;
 uintptr_t box64_nodynarec_start = 0;
 uintptr_t box64_nodynarec_end = 0;
