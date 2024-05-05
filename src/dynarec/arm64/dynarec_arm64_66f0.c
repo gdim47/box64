@@ -637,50 +637,19 @@ uintptr_t dynarec64_66F0(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int n
                                     STADDLH(x3, wback);
                                 }
                             } else {
-                                STADDLH(x3, wback);
+                                MARKLOCK;
+                                LDAXRH(x1, wback);
+                                emit_inc16(dyn, ninst, x1, x3, x4);
+                                STLXRH(x3, x1, wback);
+                                CBNZx_MARKLOCK(x3);
+                                SMDMB();
                             }
-                        } else {
-                            MARKLOCK;
-                            LDAXRH(x1, wback);
-                            emit_inc16(dyn, ninst, x1, x3, x4);
-                            STLXRH(x3, x1, wback);
-                            CBNZx_MARKLOCK(x3);
-                            SMDMB();
                         }
-                    }
-                    break;
-                case 1: // DEC Ew
-                    INST_NAME("LOCK DEC Ew");
-                    SETFLAGS(X_ALL & ~X_CF, SF_SUBSET_PENDING);
-                    if (MODREG) {
-                        ed = xRAX + (nextop & 7) + (rex.b << 3);
-                        UXTHw(x6, ed);
-                        emit_dec16(dyn, ninst, x6, x5, x3);
-                        BFIx(ed, x6, 0, 16);
-                    } else {
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, NULL, 0, 0, rex, LOCK_LOCK, 0, 0);
-                        if (arm64_atomics) {
-                            MOV32w(x3, -1);
-                            UFLAG_IF {
-                                LDADDALH(x3, x1, wback);
-                                emit_dec16(dyn, ninst, x1, x3, x4);
-                            } else {
-                                STADDLH(x3, wback);
-                            }
-                        } else {
-                            MARKLOCK;
-                            LDAXRH(x1, wback);
-                            emit_dec16(dyn, ninst, x1, x3, x4);
-                            STLXRH(x3, x1, wback);
-                            CBNZx_MARKLOCK(x3);
-                            SMDMB();
-                        }
-                    }
-                    break;
-                default:
-                    DEFAULT;
-            }
-            break;
+                        break;
+                    default:
+                        DEFAULT;
+                }
+                break;
 
         default:
             DEFAULT;
