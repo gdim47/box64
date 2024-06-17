@@ -55,6 +55,7 @@ int box64_cefdisablegpu = 0;
 int box64_cefdisablegpucompositor = 0;
 int box64_malloc_hack = 0;
 int box64_dynarec_test = 0;
+path_collection_t box64_addlibs = {0};
 int box64_maxcpu = 0;
 int box64_maxcpu_immutable = 0;
 #if defined(SD845) || defined(SD888) || defined(SD8G2) || defined(TEGRAX1)
@@ -64,6 +65,7 @@ int box64_mmap32 = 0;
 #endif
 int box64_ignoreint3 = 0;
 int box64_rdtsc = 0;
+int box64_rdtsc_1ghz = 0;
 uint8_t box64_rdtsc_shift = 0;
 #ifdef DYNAREC
 int box64_dynarec = 1;
@@ -155,6 +157,8 @@ int box64_sse_flushto0 = 0;
 int box64_x87_no80bits = 0;
 int box64_sync_rounding = 0;
 int box64_sse42 = 1;
+int box64_avx = 0;
+int box64_avx2 = 0;
 int fix_64bit_inodes = 0;
 int box64_dummy_crashhandler = 1;
 int box64_mapclean = 0;
@@ -279,8 +283,6 @@ int getNCpu();
 #ifdef DYNAREC
 void GatherDynarecExtensions()
 {
-    if(box64_dynarec==0)    // no need to check if no dynarec
-        return;
 #ifdef ARM64
 /*
 HWCAP_FP
@@ -407,7 +409,6 @@ HWCAP2_ECV
         arm64_pmull = 1;
     if(hwcap&HWCAP_AES)
         arm64_aes = 1;
-    // ATOMIC use are disable for now. They crashes Batman Arkham Knight, bossibly other (also seems to make steamwebhelper unstable)
     if(hwcap&HWCAP_ATOMICS)
         arm64_atomics = 1;
     #ifdef HWCAP_SHA1
@@ -479,7 +480,7 @@ HWCAP2_ECV
         if (la64_lbt = (cpucfg2 >> 18) & 0b1)
             printf_log(LOG_INFO, " LBT_X86");
         if (la64_lam_bh = (cpucfg2 >> 27) & 0b1)
-            printf_log(LOG_INFO, " LAM_BT");
+            printf_log(LOG_INFO, " LAM_BH");
         if (la64_lamcas = (cpucfg2 >> 28) & 0b1)
             printf_log(LOG_INFO, " LAMCAS");
         if (la64_scq = (cpucfg2 >> 30) & 0b1)
@@ -511,6 +512,45 @@ HWCAP2_ECV
 }
 #endif
 
+void computeRDTSC()
+{
+    int hardware  = 0;
+    box64_rdtsc_shift = 0;
+    #if defined(ARM64) || defined(RV64)
+    hardware = 1;
+    box64_rdtsc = 0;    // allow hardxare counter
+    #else
+    box64_rdtsc = 1;
+    printf_log(LOG_INFO, "Will use time-based emulation for rdtsc, even if hardware counter are available\n");
+    #endif
+    uint64_t freq = ReadTSCFrequency(NULL);
+    if(freq<((box64_rdtsc_1ghz)?1000000000LL:1000000)) {
+        box64_rdtsc = 1;
+        if(hardware) printf_log(LOG_INFO, "Hardware counter to slow (%d kHz), not using it\n", freq/1000);
+        hardware = 0;
+        freq = ReadTSCFrequency(NULL);
+    }
+    uint64_t efreq = freq;
+    while(efreq<2000000000) {    // minium 2GHz
+        ++box64_rdtsc_shift;
+        efreq = freq<<box64_rdtsc_shift;
+    }
+    printf_log(LOG_INFO, "Will use %s counter measured at ", box64_rdtsc?"Software":"Hardware");
+    int ghz = freq>=1000000000LL;
+    if(ghz) freq/=100000000LL; else freq/=100000;
+    if(ghz) printf_log(LOG_INFO, "%d.%d GHz", freq/10, freq%10);
+    if(!ghz && (freq>=1000)) printf_log(LOG_INFO, "%d MHz", freq/10);
+    if(!ghz && (freq<1000)) printf_log(LOG_INFO, "%d.%d MHz", freq/10, freq%10);
+    if(box64_rdtsc_shift) {
+        printf_log(LOG_INFO, " emulating ");
+        ghz = efreq>=1000000000LL;
+        if(ghz) efreq/=100000000LL; else efreq/=100000;
+        if(ghz) printf_log(LOG_INFO, "%d.%d GHz", efreq/10, efreq%10);
+        if(!ghz && (efreq>=1000)) printf_log(LOG_INFO, "%d MHz", efreq/10);
+        if(!ghz && (efreq<1000)) printf_log(LOG_INFO, "%d.%d MHz", efreq/10, efreq%10);
+    }
+    printf_log(LOG_INFO, "\n");
+}
 
 EXPORTDYN
 void LoadLogEnv()
@@ -1021,6 +1061,29 @@ void LoadLogEnv()
         if(!box64_sse42)
             printf_log(LOG_INFO, "Do not expose SSE 4.2 capabilities\n");
     }
+    p = getenv("BOX64_AVX");
+    if(p) {
+        if(strlen(p)==1) {
+            if(p[0]>='0' && p[0]<='0'+2)
+                box64_avx = p[0]-'0';
+        }
+        if(box64_avx)
+            printf_log(LOG_INFO, "Will expose AVX capabilities\n");
+        if(box64_avx==2) {
+            box64_avx=1;
+            box64_avx2 = 1;
+            printf_log(LOG_INFO, "Will expose AVX2 capabilities\n");
+        }
+    }
+    p = getenv("BOX64_RDTSC_1GHZ");
+    if(p) {
+        if(strlen(p)==1) {
+            if(p[0]>='0' && p[0]<='0'+1)
+                box64_rdtsc_1ghz = p[0]-'0';
+        }
+        if(!box64_rdtsc_1ghz)
+            printf_log(LOG_INFO, "Will require a hardware counter of 1GHz minimum or will fallback to software\n");
+    }
     p = getenv("BOX64_FIX_64BIT_INODES");
     if(p) {
         if(strlen(p)==1) {
@@ -1103,41 +1166,7 @@ void LoadLogEnv()
     const char* cpuname = getCpuName();
     printf_log(LOG_INFO, " PageSize:%zd Running on %s with %d Cores\n", box64_pagesize, cpuname, ncpu);
     // grab and calibrate hardware counter
-    int hardware  = 0;
-    #if defined(ARM64) || defined(RV64)
-    hardware = 1;
-    box64_rdtsc = 0;    // allow hardxare counter
-    #else
-    box64_rdtsc = 1;
-    printf_log(LOG_INFO, "Will use time-based emulation for rdtsc, even if hardware counter are available\n");
-    #endif
-    uint64_t freq = ReadTSCFrequency(NULL);
-    if(freq<1000000) {
-        box64_rdtsc = 1;
-        if(hardware) printf_log(LOG_INFO, "Hardware counter to slow (%d kHz), not using it\n", freq/1000);
-        hardware = 0;
-        freq = ReadTSCFrequency(NULL);
-    }
-    uint64_t efreq = freq;
-    while(efreq<2000000000) {    // minium 2GHz
-        ++box64_rdtsc_shift;
-        efreq = freq<<box64_rdtsc_shift;
-    }
-    printf_log(LOG_INFO, "Will use %s counter measured at ", box64_rdtsc?"Software":"Hardware");
-    int ghz = freq>=1000000000LL;
-    if(ghz) freq/=100000000LL; else freq/=100000;
-    if(ghz) printf_log(LOG_INFO, "%d.%d GHz", freq/10, freq%10);
-    if(!ghz && (freq>=1000)) printf_log(LOG_INFO, "%d MHz", freq/10);
-    if(!ghz && (freq<1000)) printf_log(LOG_INFO, "%d.%d MHz", freq/10, freq%10);
-    if(box64_rdtsc_shift) {
-        printf_log(LOG_INFO, " emulating ");
-        ghz = efreq>=1000000000LL;
-        if(ghz) efreq/=100000000LL; else efreq/=100000;
-        if(ghz) printf_log(LOG_INFO, "%d.%d GHz", efreq/10, efreq%10);
-        if(!ghz && (efreq>=1000)) printf_log(LOG_INFO, "%d MHz", efreq/10);
-        if(!ghz && (efreq<1000)) printf_log(LOG_INFO, "%d.%d MHz", efreq/10, efreq%10);
-    }
-    printf_log(LOG_INFO, "\n");
+    computeRDTSC();
 }
 
 EXPORTDYN
@@ -1223,6 +1252,12 @@ int GatherEnv(char*** dest, char** env, char* prog)
     // and a final NULL
     (*dest)[idx++] = 0;
     return 0;
+}
+
+void AddNewLibs(const char* list)
+{
+    AppendList(&box64_addlibs, list, 0);
+    printf_log(LOG_INFO, "BOX64: Adding %s to the libs\n", list);
 }
 
 void PrintFlags() {
@@ -1398,6 +1433,9 @@ void LoadEnvVars(box64context_t *context)
             context->no_sigill = 1;
             printf_log(LOG_INFO, "BOX64: Disabling handling of SigILL\n");
         }
+    }
+    if(getenv("BOX64_ADDLIBS")) {
+        AddNewLibs(getenv("BOX64_ADDLIBS"));
     }
     // check BOX64_PATH and load it
     LoadEnvPath(&context->box64_path, ".:bin", "BOX64_PATH");
@@ -1827,10 +1865,6 @@ int initialize(int argc, const char **argv, char** env, x64emu_t** emulator, elf
     if(!strcmp(prog, "wineserver") || !strcmp(prog, "wineserver64") || (strlen(prog)>9 && !strcmp(prog+strlen(prog)-strlen("/wineserver"), "/wineserver"))) {
         box64_wine = 1;
     }
-    if(box64_wine) {
-        // disabling the use of futex_waitv for now
-        setenv("WINEFSYNC", "0", 1);
-    }
     // Create a new context
     my_context = NewBox64Context(argc - nextarg);
 
@@ -1864,24 +1898,23 @@ int initialize(int argc, const char **argv, char** env, x64emu_t** emulator, elf
                 printf_log(LOG_INFO, "%s ", ld_preload.paths[i]);
             printf_log(LOG_INFO, "\n");
         }
-    } else {
-        if(getenv("LD_PRELOAD")) {
-            char* p = getenv("LD_PRELOAD");
-            if(strstr(p, "libtcmalloc_minimal.so.0"))
-                box64_tcmalloc_minimal = 1;
-            if(strstr(p, "libtcmalloc_minimal.so.4"))
-                box64_tcmalloc_minimal = 1;
-            if(strstr(p, "libtcmalloc_minimal_debug.so.4"))
-                box64_tcmalloc_minimal = 1;
-            if(strstr(p, "libasan.so"))
-                box64_tcmalloc_minimal = 1; // it seems Address Sanitizer doesn't handle dlsym'd malloc very well
-            ParseList(p, &ld_preload, 0);
-            if (ld_preload.size && box64_log) {
-                printf_log(LOG_INFO, "BOX64 trying to Preload ");
-                for (int i=0; i<ld_preload.size; ++i)
-                    printf_log(LOG_INFO, "%s ", ld_preload.paths[i]);
-                printf_log(LOG_INFO, "\n");
-            }
+    }
+    if(getenv("LD_PRELOAD")) {
+        char* p = getenv("LD_PRELOAD");
+        if(strstr(p, "libtcmalloc_minimal.so.0"))
+            box64_tcmalloc_minimal = 1;
+        if(strstr(p, "libtcmalloc_minimal.so.4"))
+            box64_tcmalloc_minimal = 1;
+        if(strstr(p, "libtcmalloc_minimal_debug.so.4"))
+            box64_tcmalloc_minimal = 1;
+        if(strstr(p, "libasan.so"))
+            box64_tcmalloc_minimal = 1; // it seems Address Sanitizer doesn't handle dlsym'd malloc very well
+        AppendList(&ld_preload, p, 0);
+        if (ld_preload.size && box64_log) {
+            printf_log(LOG_INFO, "BOX64 trying to Preload ");
+            for (int i=0; i<ld_preload.size; ++i)
+                printf_log(LOG_INFO, "%s ", ld_preload.paths[i]);
+            printf_log(LOG_INFO, "\n");
         }
     }
     // print PATH and LD_LIB used

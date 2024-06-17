@@ -1209,6 +1209,20 @@ EXPORT int my___fxstat64(x64emu_t *emu, int vers, int fd, void* buf)
     return r;
 }
 
+EXPORT int my___xmknod(x64emu_t* emu, int v, char* path, uint32_t mode, dev_t* dev)
+{
+    (void)emu;
+    (void)v;
+    return mknod((const char*)path, mode, *dev);
+}
+
+EXPORT int my___xmknodat(x64emu_t* emu, int v, int dirfd, char* path, uint32_t mode, dev_t* dev)
+{
+    (void)emu;
+    (void)v;
+    return mknodat(dirfd, (const char*)path, mode, *dev);
+}
+
 EXPORT int my___xstat(x64emu_t* emu, int v, void* path, void* buf)
 {
     (void)emu; (void)v;
@@ -1571,6 +1585,19 @@ static int isProcSelf(const char *path, const char* w)
     return 0;
 }
 
+static int isSysCpuCache(const char *path, const char* w, int* _cpu, int* _index)
+{
+    char tmp[128];
+    int cpu, index;
+    if(sscanf(path, "/sys/devices/system/cpu/cpu%d/cache/index%d/%s", &cpu, &index, tmp)!=3)
+        return 0;
+    if(strcmp(tmp, w))
+        return 0;
+    if(_cpu) * _cpu = cpu;
+    if(_index) *_index = index;
+    return 1;
+}
+
 EXPORT ssize_t my_readlink(x64emu_t* emu, void* path, void* buf, size_t sz)
 {
     if(isProcSelf((const char*)path, "exe")) {
@@ -1626,7 +1653,7 @@ void CreateCPUInfoFile(int fd)
         P;
         sprintf(buff, "bogomips\t: %g\n", getBogoMips());
         P;
-        sprintf(buff, "flags\t\t: fpu cx8 sep ht cmov clflush mmx sse sse2 syscall tsc lahf_lm ssse3 ht tm lm fxsr cpuid pclmulqdq cx16 aes movbe pni sse4_1 sse4_2 lzcnt popcnt\n");
+        sprintf(buff, "flags\t\t: fpu cx8 sep ht cmov clflush mmx sse sse2 syscall tsc lahf_lm ssse3 ht tm lm fxsr cpuid pclmulqdq cx16 aes movbe pni sse4_1%s%s lzcnt popcnt%s%s%s%s%s\n", box64_sse42?" sse4_2":"", box64_avx?" avx":"", box64_avx?" bmi1":"", box64_avx2?" avx2":"", box64_avx?" bmi2":"", box64_avx2?" vaes":"", box64_avx2?" fma":"");
         P;
         sprintf(buff, "address sizes\t: 48 bits physical, 48 bits virtual\n");
         P;
@@ -1652,6 +1679,36 @@ void CreateClocksourceFile(int fd)
     dummy = write(fd, "tsc\n", strlen("tsc\n"));
     (void)dummy;
 }
+void CreateCpuCacheAssoc(int fd, int cpu, int index)
+{
+    size_t dummy;
+    char tmp[64];
+    sprintf(tmp, "%d\n", (index>=3)?16:8);  // Random be coherent values...
+    dummy = write(fd, tmp, strlen(tmp));
+    (void)dummy;
+}
+void CreateCpuCacheCoher(int fd, int cpu, int index)
+{
+    size_t dummy;
+    char tmp[64];
+    sprintf(tmp, "%d\n", 64);  // Random be coherent values...
+    dummy = write(fd, tmp, strlen(tmp));
+    (void)dummy;
+}
+void CreateCpuCacheSize(int fd, int cpu, int index)
+{
+    size_t dummy;
+    char tmp[64];
+    int cachesize = 12288;
+    switch(index) {
+        case 0: cachesize = 32; break;
+        case 1: cachesize = 32; break;
+        case 2: cachesize = 256; break;
+    }
+    sprintf(tmp, "%dK\n", cachesize);  // Random be coherent values...
+    dummy = write(fd, tmp, strlen(tmp));
+    (void)dummy;
+}
 
 #ifdef ANDROID
 static int shm_open(const char *name, int oflag, mode_t mode) {
@@ -1669,6 +1726,9 @@ static int shm_unlink(const char *name) {
 #define TMP_MEMMAP  "box64_tmpmemmap"
 #define TMP_CMDLINE "box64_tmpcmdline"
 #define TMP_CPUPRESENT "box64_cpupresent"
+#define TMP_CPUCACHE_ASSOC "box64_cpucacheassoc"
+#define TMP_CPUCACHE_COHER "box64_cpucachecoher"
+#define TMP_CPUCACHE_SIZE "box64_cpucachesize"
 EXPORT int32_t my_open(x64emu_t* emu, void* pathname, int32_t flags, uint32_t mode)
 {
     if(isProcSelf((const char*) pathname, "cmdline")) {
@@ -1716,6 +1776,34 @@ EXPORT int32_t my_open(x64emu_t* emu, void* pathname, int32_t flags, uint32_t mo
         if(tmp<0) return open(pathname, flags, mode); // error fallback
         shm_unlink(TMP_CLOCKSOURCE);    // remove the shm file, but it will still exist because it's currently in use
         CreateClocksourceFile(tmp);
+        lseek(tmp, 0, SEEK_SET);
+        return tmp;
+    }
+    int cpu, index;
+    if(isSysCpuCache(pathname, "ways_of_associativity", &cpu, &index) && !FileExist(pathname, IS_FILE)) {
+        // Create a dummy one
+        int tmp = shm_open(TMP_CPUCACHE_ASSOC, O_RDWR | O_CREAT, S_IRWXU);
+        if(tmp<0) return open(pathname, flags, mode); // error fallback
+        shm_unlink(TMP_CPUCACHE_ASSOC);    // remove the shm file, but it will still exist because it's currently in use
+        CreateCpuCacheAssoc(tmp, cpu, index);
+        lseek(tmp, 0, SEEK_SET);
+        return tmp;
+    }
+    if(isSysCpuCache(pathname, "coherency_line_size", &cpu, &index) && !FileExist(pathname, IS_FILE)) {
+        // Create a dummy one
+        int tmp = shm_open(TMP_CPUCACHE_COHER, O_RDWR | O_CREAT, S_IRWXU);
+        if(tmp<0) return open(pathname, flags, mode); // error fallback
+        shm_unlink(TMP_CPUCACHE_COHER);    // remove the shm file, but it will still exist because it's currently in use
+        CreateCpuCacheCoher(tmp, cpu, index);
+        lseek(tmp, 0, SEEK_SET);
+        return tmp;
+    }
+    if(isSysCpuCache(pathname, "size", &cpu, &index) && !FileExist(pathname, IS_FILE)) {
+        // Create a dummy one
+        int tmp = shm_open(TMP_CPUCACHE_SIZE, O_RDWR | O_CREAT, S_IRWXU);
+        if(tmp<0) return open(pathname, flags, mode); // error fallback
+        shm_unlink(TMP_CPUCACHE_SIZE);    // remove the shm file, but it will still exist because it's currently in use
+        CreateCpuCacheAssoc(tmp, cpu, index);
         lseek(tmp, 0, SEEK_SET);
         return tmp;
     }
@@ -1815,6 +1903,34 @@ EXPORT int32_t my_open64(x64emu_t* emu, void* pathname, int32_t flags, uint32_t 
         lseek(tmp, 0, SEEK_SET);
         return tmp;
     }
+    int cpu, index;
+    if(isSysCpuCache(pathname, "ways_of_associativity", &cpu, &index) && !FileExist(pathname, IS_FILE)) {
+        // Create a dummy one
+        int tmp = shm_open(TMP_CPUCACHE_ASSOC, O_RDWR | O_CREAT, S_IRWXU);
+        if(tmp<0) return open(pathname, flags, mode); // error fallback
+        shm_unlink(TMP_CPUCACHE_ASSOC);    // remove the shm file, but it will still exist because it's currently in use
+        CreateCpuCacheAssoc(tmp, cpu, index);
+        lseek(tmp, 0, SEEK_SET);
+        return tmp;
+    }
+    if(isSysCpuCache(pathname, "coherency_line_size", &cpu, &index) && !FileExist(pathname, IS_FILE)) {
+        // Create a dummy one
+        int tmp = shm_open(TMP_CPUCACHE_COHER, O_RDWR | O_CREAT, S_IRWXU);
+        if(tmp<0) return open(pathname, flags, mode); // error fallback
+        shm_unlink(TMP_CPUCACHE_COHER);    // remove the shm file, but it will still exist because it's currently in use
+        CreateCpuCacheCoher(tmp, cpu, index);
+        lseek(tmp, 0, SEEK_SET);
+        return tmp;
+    }
+    if(isSysCpuCache(pathname, "size", &cpu, &index) && !FileExist(pathname, IS_FILE)) {
+        // Create a dummy one
+        int tmp = shm_open(TMP_CPUCACHE_SIZE, O_RDWR | O_CREAT, S_IRWXU);
+        if(tmp<0) return open(pathname, flags, mode); // error fallback
+        shm_unlink(TMP_CPUCACHE_SIZE);    // remove the shm file, but it will still exist because it's currently in use
+        CreateCpuCacheAssoc(tmp, cpu, index);
+        lseek(tmp, 0, SEEK_SET);
+        return tmp;
+    }
     #endif
     return open64(pathname, flags, mode);
 }
@@ -1855,6 +1971,34 @@ EXPORT FILE* my_fopen64(x64emu_t* emu, const char* path, const char* mode)
         if(tmp<0) return fopen64(path, mode); // error fallback
         shm_unlink(TMP_CLOCKSOURCE);    // remove the shm file, but it will still exist because it's currently in use
         CreateClocksourceFile(tmp);
+        lseek(tmp, 0, SEEK_SET);
+        return fdopen(tmp, mode);
+    }
+    int cpu, index;
+    if(isSysCpuCache(path, "ways_of_associativity", &cpu, &index) && !FileExist(path, IS_FILE)) {
+        // Create a dummy one
+        int tmp = shm_open(TMP_CPUCACHE_ASSOC, O_RDWR | O_CREAT, S_IRWXU);
+        if(tmp<0) return fopen64(path, mode); // error fallback
+        shm_unlink(TMP_CPUCACHE_ASSOC);    // remove the shm file, but it will still exist because it's currently in use
+        CreateCpuCacheAssoc(tmp, cpu, index);
+        lseek(tmp, 0, SEEK_SET);
+        return fdopen(tmp, mode);
+    }
+    if(isSysCpuCache(path, "coherency_line_size", &cpu, &index) && !FileExist(path, IS_FILE)) {
+        // Create a dummy one
+        int tmp = shm_open(TMP_CPUCACHE_COHER, O_RDWR | O_CREAT, S_IRWXU);
+        if(tmp<0) return fopen64(path, mode); // error fallback
+        shm_unlink(TMP_CPUCACHE_COHER);    // remove the shm file, but it will still exist because it's currently in use
+        CreateCpuCacheCoher(tmp, cpu, index);
+        lseek(tmp, 0, SEEK_SET);
+        return fdopen(tmp, mode);
+    }
+    if(isSysCpuCache(path, "size", &cpu, &index) && !FileExist(path, IS_FILE)) {
+        // Create a dummy one
+        int tmp = shm_open(TMP_CPUCACHE_SIZE, O_RDWR | O_CREAT, S_IRWXU);
+        if(tmp<0) return fopen64(path, mode); // error fallback
+        shm_unlink(TMP_CPUCACHE_SIZE);    // remove the shm file, but it will still exist because it's currently in use
+        CreateCpuCacheAssoc(tmp, cpu, index);
         lseek(tmp, 0, SEEK_SET);
         return fdopen(tmp, mode);
     }
@@ -2735,7 +2879,7 @@ EXPORT void* my_mmap64(x64emu_t* emu, void *addr, unsigned long length, int prot
         if((flags&MAP_SHARED) && (fd>0)) {
             uint32_t flags = fcntl(fd, F_GETFL);
             if((flags&O_ACCMODE)==O_RDWR) {
-                if((box64_log>=LOG_DEBUG || box64_dynarec_log>=LOG_DEBUG)) {printf_log(LOG_NONE, "Note: Marking the region as NEVERCLEAN because fd have O_RDWR attribute\n");}
+                if((box64_log>=LOG_DEBUG || box64_dynarec_log>=LOG_DEBUG)) {printf_log(LOG_NONE, "Note: Marking the region (%p-%p prot=%x) as NEVERCLEAN because fd have O_RDWR attribute\n", ret, ret+length, prot);}
                 prot |= PROT_NEVERCLEAN;
             }
         }

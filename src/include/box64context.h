@@ -69,6 +69,7 @@ needed_libs_t* new_neededlib(int n);
 needed_libs_t* copy_neededlib(needed_libs_t* needed);
 void add1_neededlib(needed_libs_t* needed);
 void add1lib_neededlib(needed_libs_t* needed, library_t* lib, const char* name);
+void add1lib_neededlib_name(needed_libs_t* needed, library_t* lib, const char* name);
 void add1libref_neededlib(needed_libs_t* needed, library_t* lib);
 
 typedef struct base_segment_s {
@@ -164,7 +165,7 @@ typedef struct box64context_s {
     rbtree*             db_sizes;
     int                 trace_dynarec;
     pthread_mutex_t     mutex_lock;     // this is for the Test interpreter
-    #ifdef __riscv
+    #if defined(__riscv) || defined(__loongarch64)
     uint32_t            mutex_16b;
     #endif
     #endif
